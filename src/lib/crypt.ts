@@ -1,17 +1,17 @@
-import "client-only";
-import { alert, arrayBufferToBase64, base64ToArrayBuffer } from "./client";
+import 'client-only';
+import { arrayBufferToBase64, base64ToArrayBuffer } from './client';
 
 const PBKDF2_ITERATIONS = 100000;
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
-const KEY_FORMAT = "spki";
-const PRIVATE_KEY_FORMAT = "pkcs8";
+const KEY_FORMAT = 'spki';
+const PRIVATE_KEY_FORMAT = 'pkcs8';
 const EC_PARAMS = {
-  name: "ECDH",
-  namedCurve: "P-256",
+  name: 'ECDH',
+  namedCurve: 'P-256',
 };
 const AES_PARAMS = {
-  name: "AES-GCM",
+  name: 'AES-GCM',
   length: 256,
 };
 
@@ -21,19 +21,19 @@ async function generateKeyPair(): Promise<{
 }> {
   // Generate the key pair
   const keyPair = await crypto.subtle.generateKey(EC_PARAMS, true, [
-    "deriveBits",
+    'deriveBits',
   ]);
 
   // Export the public key in spki format
   const exportedPubKey = await crypto.subtle.exportKey(
     KEY_FORMAT,
-    keyPair.publicKey
+    keyPair.publicKey,
   );
 
   // Export the private key in pkcs8 format
   const exportedPrivKey = await crypto.subtle.exportKey(
     PRIVATE_KEY_FORMAT,
-    keyPair.privateKey
+    keyPair.privateKey,
   );
 
   // Convert to base64 strings
@@ -48,7 +48,7 @@ async function generateKeyPair(): Promise<{
  */
 async function encryptPrivateKey(
   passphrase: string,
-  privateKey: string
+  privateKey: string,
 ): Promise<string> {
   // Generate a random salt
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
@@ -56,34 +56,34 @@ async function encryptPrivateKey(
 
   // Derive key from passphrase
   const keyMaterial = await crypto.subtle.importKey(
-    "raw",
+    'raw',
     new TextEncoder().encode(passphrase),
-    "PBKDF2",
+    'PBKDF2',
     false,
-    ["deriveBits", "deriveKey"]
+    ['deriveBits', 'deriveKey'],
   );
 
   const key = await crypto.subtle.deriveKey(
     {
-      name: "PBKDF2",
+      name: 'PBKDF2',
       salt,
       iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256",
+      hash: 'SHA-256',
     },
     keyMaterial,
     AES_PARAMS,
     false,
-    ["encrypt"]
+    ['encrypt'],
   );
 
   // Encrypt the private key
   const encrypted = await crypto.subtle.encrypt(
     {
-      name: "AES-GCM",
+      name: 'AES-GCM',
       iv,
     },
     key,
-    new TextEncoder().encode(privateKey)
+    new TextEncoder().encode(privateKey),
   );
 
   // Combine salt + iv + encrypted data
@@ -100,7 +100,7 @@ async function encryptPrivateKey(
  */
 async function decryptPrivateKey(
   passphrase: string,
-  encryptedKey: string
+  encryptedKey: string,
 ): Promise<string> {
   const encryptedData = base64ToArrayBuffer(encryptedKey);
   const salt = encryptedData.slice(0, SALT_LENGTH);
@@ -109,34 +109,34 @@ async function decryptPrivateKey(
 
   // Derive the same key from passphrase
   const keyMaterial = await crypto.subtle.importKey(
-    "raw",
+    'raw',
     new TextEncoder().encode(passphrase),
-    "PBKDF2",
+    'PBKDF2',
     false,
-    ["deriveBits", "deriveKey"]
+    ['deriveBits', 'deriveKey'],
   );
 
   const key = await crypto.subtle.deriveKey(
     {
-      name: "PBKDF2",
+      name: 'PBKDF2',
       salt,
       iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256",
+      hash: 'SHA-256',
     },
     keyMaterial,
     AES_PARAMS,
     false,
-    ["decrypt"]
+    ['decrypt'],
   );
 
   // Decrypt the private key
   const decrypted = await crypto.subtle.decrypt(
     {
-      name: "AES-GCM",
+      name: 'AES-GCM',
       iv,
     },
     key,
-    data
+    data,
   );
 
   return new TextDecoder().decode(decrypted);
@@ -148,12 +148,12 @@ async function decryptPrivateKey(
  */
 async function encryptContent(
   publicKey: string,
-  plaintext: string
+  plaintext: string,
 ): Promise<string> {
   try {
     // Generate ephemeral key pair
     const ephemeralKeyPair = await crypto.subtle.generateKey(EC_PARAMS, true, [
-      "deriveBits",
+      'deriveBits',
     ]);
 
     // Import recipient's public key with proper usage
@@ -161,52 +161,52 @@ async function encryptContent(
       KEY_FORMAT,
       base64ToArrayBuffer(publicKey),
       {
-        name: "ECDH",
-        namedCurve: "P-256",
+        name: 'ECDH',
+        namedCurve: 'P-256',
       },
       true, // extractable
-      ["deriveBits"]
+      ['deriveBits'],
     );
 
     // Derive shared secret using ECDH
     const sharedSecret = await crypto.subtle.deriveBits(
       {
-        name: "ECDH",
+        name: 'ECDH',
         public: recipientPubKey,
       },
       ephemeralKeyPair.privateKey,
-      256
+      256,
     );
 
     // Convert shared secret to AES key
     const encryptionKey = await crypto.subtle.importKey(
-      "raw",
+      'raw',
       sharedSecret,
       AES_PARAMS,
       false,
-      ["encrypt"]
+      ['encrypt'],
     );
 
     // Generate IV and encrypt the content
     const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
     const encrypted = await crypto.subtle.encrypt(
       {
-        name: "AES-GCM",
+        name: 'AES-GCM',
         iv,
       },
       encryptionKey,
-      new TextEncoder().encode(plaintext)
+      new TextEncoder().encode(plaintext),
     );
 
     // Export ephemeral public key
     const exportedEphPubKey = await crypto.subtle.exportKey(
       KEY_FORMAT,
-      ephemeralKeyPair.publicKey
+      ephemeralKeyPair.publicKey,
     );
 
     // Combine K-eph.ciphertext.IV
     const result = new Uint8Array(
-      exportedEphPubKey.byteLength + encrypted.byteLength + iv.length
+      exportedEphPubKey.byteLength + encrypted.byteLength + iv.length,
     );
     result.set(new Uint8Array(exportedEphPubKey), 0);
     result.set(new Uint8Array(encrypted), exportedEphPubKey.byteLength);
@@ -214,7 +214,7 @@ async function encryptContent(
 
     return arrayBufferToBase64(result.buffer);
   } catch (error) {
-    throw new Error("Failed to encrypt");
+    throw new Error('Failed to encrypt');
   }
 }
 
@@ -224,7 +224,7 @@ async function encryptContent(
  */
 async function decryptContent(
   privateKey: string,
-  ciphertext: string
+  ciphertext: string,
 ): Promise<string> {
   const data = base64ToArrayBuffer(ciphertext);
 
@@ -234,7 +234,7 @@ async function decryptContent(
     base64ToArrayBuffer(privateKey),
     EC_PARAMS,
     false,
-    ["deriveBits"]
+    ['deriveBits'],
   );
 
   // Extract components from ciphertext
@@ -249,36 +249,36 @@ async function decryptContent(
     ephPubKey,
     EC_PARAMS,
     false,
-    ["deriveBits"]
+    ['deriveBits'],
   );
 
   // Derive shared secret using DH
   const sharedSecret = await crypto.subtle.deriveBits(
     {
-      name: "ECDH",
+      name: 'ECDH',
       public: ephemeralPubKey,
     },
     recipientPrivKey,
-    256
+    256,
   );
 
   // Convert shared secret to AES key
   const decryptionKey = await crypto.subtle.importKey(
-    "raw",
+    'raw',
     sharedSecret,
     AES_PARAMS,
     false,
-    ["decrypt"]
+    ['decrypt'],
   );
 
   // Decrypt the content
   const decrypted = await crypto.subtle.decrypt(
     {
-      name: "AES-GCM",
+      name: 'AES-GCM',
       iv,
     },
     decryptionKey,
-    encryptedData
+    encryptedData,
   );
 
   return new TextDecoder().decode(decrypted);
